@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
 from nilearn import datasets, plotting
-from nilearn.maskers import NiftiMapsMasker
+from nilearn.maskers import NiftiLabelsMasker, NiftiMapsMasker
 
 
 data_dir = '/users/ntolley/scratch/metanets_data/'
+
 
 atlas = datasets.fetch_atlas_msdl()
 # Loading atlas image stored in 'maps'
@@ -13,7 +14,8 @@ atlas_filename = atlas["maps"]
 labels = atlas["labels"]
 
 # Loading the functional datasets
-data = datasets.fetch_development_fmri(data_dir=data_dir)
+n_subjects = len(data.func)
+data = datasets.fetch_development_fmri(n_subjects=n_subjects)
 
 masker = NiftiMapsMasker(
     maps_img=atlas_filename,
@@ -23,11 +25,11 @@ masker = NiftiMapsMasker(
     verbose=5,
 )
 
-n_subjects = len(data.func)
 
 df_list = list()
 for subj_idx in range(n_subjects):
-    time_series = masker.fit_transform(data.func[subj_idx], confounds=data.confounds)
+    reduced_confounds = data.confounds[subj_idx]
+    time_series = masker.fit_transform(data.func[subj_idx], confounds=reduced_confounds)
     df_temp = pd.DataFrame(time_series)
     df_temp['subj'] = np.repeat(subj_idx, len(df_temp))
 
@@ -35,4 +37,4 @@ for subj_idx in range(n_subjects):
 
 df = pd.concat(df_list)
 
-df = pd.read_pickle('../data/developmental_df.pkl')
+df.to_pickle('../data/developmental_df.pkl')
