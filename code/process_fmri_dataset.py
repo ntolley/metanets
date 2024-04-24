@@ -14,8 +14,9 @@ atlas_filename = atlas["maps"]
 labels = atlas["labels"]
 
 # Loading the functional datasets
+data = datasets.fetch_development_fmri(data_dir=data_dir)
 n_subjects = len(data.func)
-data = datasets.fetch_development_fmri(n_subjects=n_subjects)
+print(n_subjects)
 
 masker = NiftiMapsMasker(
     maps_img=atlas_filename,
