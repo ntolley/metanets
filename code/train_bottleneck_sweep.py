@@ -65,7 +65,7 @@ def run_mamba(df, cv_dict, fold, bottleneck):
     loss_dict = utils.train_validate_model(model, optimizer, criterion, max_epochs, training_generator, validation_generator, device, 10, 30)
 
     # Save metadata
-    metadata = {'lr': lr, 'weight_decay': weight_decay, 'max_epochs': max_epochs,
+    metadata = {'cv_dict': cv_dict, 'lr': lr, 'weight_decay': weight_decay, 'max_epochs': max_epochs,
                 'encoder_hidden': encoder_hidden, 'decoder_hidden': decoder_hidden}
 
     return loss_dict, model
@@ -86,8 +86,7 @@ def main():
 
     print(f'{n_subjects} unique subjects found')
 
-    bottleneck_values = [4,8,12,16,20,24,28,32]
-    # bottleneck_values = [4,16,32]
+    bottleneck_values = [1,3,5,7,9,11,13,15]
 
     train_results = dict()
     for bottleneck in bottleneck_values:
@@ -108,6 +107,8 @@ def main():
             output = open(f'../data/bottleneck_sweep_results.pkl', 'wb')
             pickle.dump(train_results, output)
             output.close()
+
+    train_results['bottleneck_sweep'] = bottleneck_values
 
 if __name__ == '__main__':
     main()
