@@ -38,7 +38,7 @@ def get_generators(df, cv_dict, fold, batch_size=10_000, num_cores=1):
 
     return generators, data_arrays
 
-def run_mamba(df, cv_dict, fold, bottleneck):
+def run_mamba(df, cv_dict, fold, bottleneck=10, lr=1e-3):
     # Get training generators
     generators, data_arrays = get_generators(df, cv_dict, fold)
 
@@ -46,7 +46,6 @@ def run_mamba(df, cv_dict, fold, bottleneck):
     training_set, _, _ = data_arrays
 
     #Define hyperparameters
-    lr = 1e-3
     weight_decay = 0.0
     max_epochs = 1000
     input_size = training_set[0].shape[1]
@@ -70,6 +69,59 @@ def run_mamba(df, cv_dict, fold, bottleneck):
 
     return loss_dict, model
 
+def bottleneck_sweep(df, cv_dict, num_folds):
+    # Sweep through bottleneck values
+    bottleneck_values = [1,3,5,7,9,11,13,15]
+
+    train_results = dict()
+    train_results['bottleneck_values'] = bottleneck_values
+
+    for bottleneck in bottleneck_values:
+        train_results[f'bottleneck_{bottleneck}'] = dict()
+        for fold in range(num_folds):
+            print(f'Training model on fold {fold}; bottleneck: {bottleneck}', end='\n')
+
+            # Run one training instance
+            res_dict, model = run_mamba(df=df, cv_dict=cv_dict, fold=fold, bottleneck=bottleneck)
+            print(' ')
+
+            # Save model
+            torch.save(model.state_dict(), f'../models/mamba/bottleneck/mamba_fold{fold}_bottleneck{bottleneck}.pt')
+
+            # Save results on every loop in case early stop
+            train_results[f'bottleneck_{bottleneck}'][f'fold_{fold}'] = res_dict
+            #Save metadata
+            output = open(f'../data/mamba_bottleneck_sweep_results.pkl', 'wb')
+            pickle.dump(train_results, output)
+            output.close()
+
+def learning_rate_sweep(df, cv_dict, num_folds):
+    # Sweep through learning rate values
+    lr_values = [1e-3, 1e-4, 1e-5, 1e-6]
+
+    train_results = dict()
+    train_results['learning_rate_values'] = lr_values
+
+    for lr in lr_values:
+        train_results[f'lr_{lr}'] = dict()
+        for fold in range(num_folds):
+            print(f'Training model on fold {fold}; lr: {lr}', end='\n')
+
+            # Run one training instance
+            res_dict, model = run_mamba(df=df, cv_dict=cv_dict, fold=fold, lr=lr)
+            print(' ')
+
+            # Save model
+            torch.save(model.state_dict(), f'../models/mamba/learning_rate/mamba_fold{fold}_lr{lr}.pt')
+
+            # Save results on every loop in case early stop
+            train_results[f'lr_{lr}'][f'fold_{fold}'] = res_dict
+            #Save metadata
+            output = open(f'../data/mamba_lr_sweep_results.pkl', 'wb')
+            pickle.dump(train_results, output)
+            output.close()
+
+
 def main():
     df = pd.read_pickle('../data/developmental_df.pkl')
     n_subjects = len(np.unique(df['subj'].values))
@@ -86,29 +138,8 @@ def main():
 
     print(f'{n_subjects} unique subjects found')
 
-    bottleneck_values = [1,3,5,7,9,11,13,15]
-
-    train_results = dict()
-    for bottleneck in bottleneck_values:
-        train_results[f'bottleneck_{bottleneck}'] = dict()
-        for fold in range(num_folds):
-            print(f'Training model on fold {fold}; bottleneck: {bottleneck}', end='\n')
-
-            # Run one training instance
-            res_dict, model = run_mamba(df=df, cv_dict=cv_dict, fold=fold, bottleneck=bottleneck)
-            print(' ')
-
-            # Save model
-            torch.save(model.state_dict(), f'../models/mamba_fold{fold}_bottleneck{bottleneck}.pt')
-
-            # Save results on every loop in case early stop
-            train_results[f'bottleneck_{bottleneck}'][f'fold_{fold}'] = res_dict
-            #Save metadata
-            output = open(f'../data/bottleneck_sweep_results.pkl', 'wb')
-            pickle.dump(train_results, output)
-            output.close()
-
-    train_results['bottleneck_sweep'] = bottleneck_values
+    # bottleneck_sweep(df, cv_dict, num_folds)
+    learning_rate_sweep(df, cv_dict, num_folds)
 
 if __name__ == '__main__':
     main()
