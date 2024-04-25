@@ -40,9 +40,9 @@ class model_mamba_autoencoder(nn.Module):
 
 class model_ann_autoencoder(nn.Module):
     """Fully connected autoencoder"""
-    def __init__(self, input_size, output_size, encoder_layer_size, decoder_layer_size, bottleneck = 10):
+    def __init__(self, input_size, encoder_layer_size, decoder_layer_size, bottleneck = 10):
         super(model_ann_autoencoder, self).__init__()
-        self.input_size, self.output_size = input_size, output_size
+        self.input_size = input_size
         self.encoder_layer_size, self.decoder_layer_size = encoder_layer_size, decoder_layer_size
 
         self.encoder = model_ann(input_size, bottleneck, layer_size=self.encoder_layer_size)
