@@ -64,7 +64,10 @@ def run_ann(df, cv_dict, fold, bottleneck=10, lr=1e-3):
 
     # Save metadata
     metadata = {'cv_dict': cv_dict, 'lr': lr, 'weight_decay': weight_decay, 'max_epochs': max_epochs,
+                'input_size': input_size, 'bottleneck': bottleneck,
                 'encoder_layer_size': encoder_layer_size, 'decoder_layer_size': decoder_layer_size}
+
+    loss_dict['metadata'] = metadata
 
     return loss_dict, model
 

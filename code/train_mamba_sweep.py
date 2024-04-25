@@ -65,7 +65,9 @@ def run_mamba(df, cv_dict, fold, bottleneck=10, lr=1e-3):
 
     # Save metadata
     metadata = {'cv_dict': cv_dict, 'lr': lr, 'weight_decay': weight_decay, 'max_epochs': max_epochs,
-                'encoder_hidden': encoder_hidden, 'decoder_hidden': decoder_hidden}
+                'input_size': input_size, 'bottleneck': bottleneck, 'encoder_hidden': encoder_hidden, 'decoder_hidden': decoder_hidden}
+
+    loss_dict['metadata'] = metadata
 
     return loss_dict, model
 
