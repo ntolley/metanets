@@ -11,6 +11,8 @@ from sklearn.model_selection import ShuffleSplit
 import os
 from sklearn.preprocessing import StandardScaler
 
+from functools import partial
+
 class model_mamba_autoencoder(nn.Module):
     def __init__(self, input_size, encoder_hidden, decoder_hidden,
                  bottleneck=10, device='cpu'):
@@ -19,8 +21,8 @@ class model_mamba_autoencoder(nn.Module):
         self.encoder_hidden, self.decoder_hidden = encoder_hidden, decoder_hidden
         self.bottleneck = bottleneck
 
-        self.encoder_mamba = Mamba(d_model=self.encoder_hidden, d_state=16, d_conv=4, expand=2).to(device)
-        self.decoder_mamba = Mamba(d_model=self.decoder_hidden, d_state=16, d_conv=4, expand=2).to(device)
+        self.encoder_mamba = Mamba(d_model=self.encoder_hidden, d_state=64, d_conv=4, expand=2).to(device)
+        self.decoder_mamba = Mamba(d_model=self.decoder_hidden, d_state=64, d_conv=4, expand=2).to(device)
 
         self.fc_in = nn.Linear(self.input_size, self.encoder_hidden)
         self.fc_out = nn.Linear(self.decoder_hidden, self.input_size)
@@ -31,33 +33,33 @@ class model_mamba_autoencoder(nn.Module):
         out = x.contiguous()
         out = self.fc_in(out)
         out = self.encoder_mamba(out)
-        out = self.encoder_ann(out)
+        z = self.encoder_ann(out)
 
-        out = self.decoder_ann(out)
+        out = self.decoder_ann(z)
         out = self.decoder_mamba(out)
         out = self.fc_out(out)
-        return out
+        return out, z
 
 class model_ann_autoencoder(nn.Module):
     """Fully connected autoencoder"""
-    def __init__(self, input_size, encoder_layer_size, decoder_layer_size, bottleneck = 10):
+    def __init__(self, input_size, encoder_layer_size, decoder_layer_size, bottleneck=10, dropout=0.0):
         super(model_ann_autoencoder, self).__init__()
         self.input_size = input_size
         self.encoder_layer_size, self.decoder_layer_size = encoder_layer_size, decoder_layer_size
 
-        self.encoder = model_ann(input_size, bottleneck, layer_size=self.encoder_layer_size)
-        self.decoder = model_ann(bottleneck, input_size, layer_size=self.decoder_layer_size)
+        self.encoder = model_ann(input_size, bottleneck, layer_size=self.encoder_layer_size, dropout=dropout)
+        self.decoder = model_ann(bottleneck, input_size, layer_size=self.decoder_layer_size, dropout=dropout)
 
     def forward(self, x):
-        out = self.encoder(x)
-        out = self.decoder(out)
+        z = self.encoder(x)
+        out = self.decoder(z)
 
-        return out
+        return out, z
 
 class model_lstm_autoencoder(nn.Module):
     """LSTM-based autoencoder"""
     def __init__(self, input_size, lstm_encoder_hidden, lstm_decoder_hidden,
-                 encoder_layer_size, decoder_layer_size, bottleneck=10, device='cpu'):
+                 encoder_layer_size, decoder_layer_size, bottleneck=10, device='cpu', dropout=0.1):
         super(model_lstm_autoencoder, self).__init__()
         self.input_size = input_size
         self.encoder_layer_size, self.decoder_layer_size = encoder_layer_size, decoder_layer_size
@@ -65,8 +67,8 @@ class model_lstm_autoencoder(nn.Module):
         self.bottleneck = bottleneck
 
         self.encoder_lstm = model_lstm(input_size=input_size, hidden_dim=lstm_encoder_hidden, n_layers=2, dropout=0.1)
-        self.encoder_ann = model_ann(input_size, bottleneck, layer_size=self.encoder_layer_size)
-        self.decoder_ann = model_ann(bottleneck, input_size, layer_size=self.decoder_layer_size)
+        self.encoder_ann = model_ann(input_size, bottleneck, layer_size=self.encoder_layer_size, dropout=dropout)
+        self.decoder_ann = model_ann(bottleneck, input_size, layer_size=self.decoder_layer_size, dropout=dropout)
         self.decoder_lstm = model_lstm(input_size=input_size, hidden_dim=lstm_encoder_hidden, n_layers=2, dropout=0.1)
 
         self.fc = nn.Linear(self.input_size, self.input_size)
@@ -74,12 +76,12 @@ class model_lstm_autoencoder(nn.Module):
     def forward(self, x):
         out = self.encoder_lstm(x)
         out = out.contiguous()
-        out = self.encoder_ann(out)
+        z = self.encoder_ann(out)
 
-        out = self.decoder_ann(out)
+        out = self.decoder_ann(z)
         out = self.decoder_lstm(out)
         out = self.fc(out)
-        return out
+        return out, z
 
 
 # Simple base networks used for encoding/decoding
@@ -160,7 +162,7 @@ def train_validate_model(model, optimizer, criterion, max_epochs, training_gener
             optimizer.zero_grad() # Clears existing gradients from previous epoch
             batch_x = batch_x.float().to(device)
 
-            output = model(batch_x)
+            output, z = model(batch_x)
             train_loss = criterion(output, batch_x)
             train_loss.backward() # Does backpropagation and calculates gradients
             optimizer.step() # Updates the weights accordingly
@@ -176,7 +178,7 @@ def train_validate_model(model, optimizer, criterion, max_epochs, training_gener
             for batch_x in validation_generator:
                 batch_x = batch_x.float().to(device)
 
-                output = model(batch_x)
+                output, z = model(batch_x)
                 validation_loss = criterion(output, batch_x)
 
                 validation_batch_loss.append(validation_loss.item())
@@ -222,7 +224,7 @@ def train_validate_model(model, optimizer, criterion, max_epochs, training_gener
 
 
 class fmri_dataset(torch.utils.data.Dataset):
-     def __init__(self, cv_dict, fold, partition, df, window_size=100, data_step_size=1, scaler=None, device='cpu'):
+     def __init__(self, cv_dict, fold, partition, df, window_size=100, data_step_size=100, scaler=None, device='cpu'):
           self.cv_dict = cv_dict
           self.fold = fold
           self.partition = partition
@@ -250,7 +252,7 @@ class fmri_dataset(torch.utils.data.Dataset):
           data_list = list()
           for subj in self.subj_idx:
                df_filtered = df[df['subj'] == subj]
-               subj_values = df_filtered.values
+               subj_values = df_filtered.iloc[:,:-1].values
                data_list.append(subj_values)
           return data_list
 
@@ -268,3 +270,18 @@ class fmri_dataset(torch.utils.data.Dataset):
           
      def __getitem__(self, slice_index):
           return self.X_tensor[slice_index,:,:]
+
+def cov_mse_loss(y_pred, y, z, cov_loss_weight=0.0):
+    mse = nn.MSELoss()(y_pred, y)
+    cov_loss = COVLoss(z)
+
+    return mse + cov_loss * cov_loss_weight
+
+
+def COVLoss(X):
+    D = X.shape[-1]
+    mean = torch.mean(X, dim=-1).unsqueeze(-1)
+    X = X - mean
+    cov_mat = torch.abs(X.transpose(-1, -2) @ (1/(D-1) * X))
+    cov_loss = torch.mean(torch.triu(cov_mat, diagonal=1))
+    return cov_loss
