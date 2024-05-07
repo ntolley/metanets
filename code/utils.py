@@ -66,12 +66,12 @@ class model_lstm_autoencoder(nn.Module):
         self.lstm_encoder_hidden, self.lstm_decoder_hidden = lstm_encoder_hidden, lstm_decoder_hidden
         self.bottleneck = bottleneck
 
-        self.encoder_lstm = model_lstm(input_size=input_size, hidden_dim=lstm_encoder_hidden, n_layers=2, dropout=0.1)
-        self.encoder_ann = model_ann(input_size, bottleneck, layer_size=self.encoder_layer_size, dropout=dropout)
-        self.decoder_ann = model_ann(bottleneck, input_size, layer_size=self.decoder_layer_size, dropout=dropout)
-        self.decoder_lstm = model_lstm(input_size=input_size, hidden_dim=lstm_encoder_hidden, n_layers=2, dropout=0.1)
+        self.encoder_lstm = model_lstm(input_size=input_size, hidden_dim=lstm_encoder_hidden, n_layers=2, dropout=0.1, device=device)
+        self.encoder_ann = model_ann(lstm_encoder_hidden, bottleneck, layer_size=self.encoder_layer_size, dropout=dropout)
+        self.decoder_ann = model_ann(bottleneck, lstm_decoder_hidden, layer_size=self.decoder_layer_size, dropout=dropout)
+        self.decoder_lstm = model_lstm(lstm_decoder_hidden, hidden_dim=lstm_decoder_hidden, n_layers=2, dropout=0.1, device=device)
 
-        self.fc = nn.Linear(self.input_size, self.input_size)
+        self.fc = nn.Linear(self.lstm_decoder_hidden, self.input_size)
 
     def forward(self, x):
         out = self.encoder_lstm(x)
