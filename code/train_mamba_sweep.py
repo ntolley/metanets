@@ -39,7 +39,7 @@ def get_generators(df, cv_dict, fold, batch_size=10_000, num_cores=1):
 
     return generators, data_arrays
 
-def run_mamba(df, cv_dict, fold, bottleneck=10, lr=1e-3, cov_loss_weight=0.0):
+def run_mamba(df, cv_dict, fold, bottleneck=15, lr=1e-3, hidden_size=100, weight_decay=0.0):
     # Get training generators
     generators, data_arrays = get_generators(df, cv_dict, fold)
 
@@ -47,13 +47,12 @@ def run_mamba(df, cv_dict, fold, bottleneck=10, lr=1e-3, cov_loss_weight=0.0):
     training_set, _, _ = data_arrays
 
     #Define hyperparameters
-    weight_decay = 0.0
     max_epochs = 1000
     input_size = training_set[0].shape[1]
     criterion = nn.MSELoss()
     # criterion = partial(utils.cov_mse_loss, cov_loss_weight=cov_loss_weight)
 
-    encoder_hidden = 100
+    encoder_hidden = hidden_size
     decoder_hidden = encoder_hidden
 
     model = utils.model_mamba_autoencoder(input_size, encoder_hidden, decoder_hidden,
@@ -102,7 +101,7 @@ def bottleneck_sweep(df, cv_dict, num_folds):
 
 def learning_rate_sweep(df, cv_dict, num_folds):
     # Sweep through learning rate values
-    lr_values = [1e-3, 1e-4, 1e-5, 1e-6]
+    lr_values = [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]
 
     train_results = dict()
     train_results['learning_rate_values'] = lr_values
@@ -126,31 +125,58 @@ def learning_rate_sweep(df, cv_dict, num_folds):
             pickle.dump(train_results, output)
             output.close()
 
-# def cov_weight_sweep(df, cv_dict, num_folds):
-#     # Sweep through learning rate values
-#     cov_weight_values = [0.1, 0.0, 1.0, 10.0, 100.0]
+def weight_decay_sweep(df, cv_dict, num_folds):
+    # Sweep through learning rate values
+    weight_decay_values = [1e-2, 1e-3, 1e-4, 1e-5, 0.0]
 
-#     train_results = dict()
-#     train_results['cov_weight_values'] = cov_weight_values
+    train_results = dict()
+    train_results['weight_decay_values'] = weight_decay_values
 
-#     for cov_loss_weight in cov_weight_values:
-#         train_results[f'cov_weight_{cov_loss_weight}'] = dict()
-#         for fold in range(num_folds):
-#             print(f'Training model on fold {fold}; cov_weight: {lr}', end='\n')
+    for weight_decay in weight_decay_values:
+        train_results[f'weight_decay_{weight_decay}'] = dict()
+        for fold in range(num_folds):
+            print(f'Training model on fold {fold}; weight_decay: {weight_decay}', end='\n')
 
-#             # Run one training instance
-#             res_dict, model = run_mamba(df=df, cv_dict=cv_dict, fold=fold, cov_loss_weight=cov_loss_weight)
-#             print(' ')
+            # Run one training instance
+            res_dict, model = run_mamba(df=df, cv_dict=cv_dict, fold=fold, weight_decay=weight_decay)
+            print(' ')
 
-#             # Save model
-#             torch.save(model.state_dict(), f'../models/mamba/cov_loss_weight/mamba_fold{fold}_lr{lr}.pt')
+            # Save model
+            torch.save(model.state_dict(), f'../models/mamba/weight_decay/mamba_fold{fold}_weight_decay{weight_decay}.pt')
 
-#             # Save results on every loop in case early stop
-#             train_results[f'cov_loss_weight_{cov_loss_weight}'][f'fold_{fold}'] = res_dict
-#             #Save metadata
-#             output = open(f'../data/mamba_cov_weight_sweep_results.pkl', 'wb')
-#             pickle.dump(train_results, output)
-#             output.close()
+            # Save results on every loop in case early stop
+            train_results[f'weight_decay_{weight_decay}'][f'fold_{fold}'] = res_dict
+            #Save metadata
+            output = open(f'../data/mamba_weight_decay_sweep_results.pkl', 'wb')
+            pickle.dump(train_results, output)
+            output.close()
+
+def hidden_size_sweep(df, cv_dict, num_folds):
+    # Sweep through learning rate values
+    hidden_size_values = [1, 5, 10, 50, 100, 500, 1000]
+    # hidden_size_values = [1000]
+
+    train_results = dict()
+    train_results['hidden_size_values'] = hidden_size_values
+
+    for hidden_size in hidden_size_values:
+        train_results[f'hidden_size_{hidden_size}'] = dict()
+        for fold in range(num_folds):
+            print(f'Training model on fold {fold}; hidden_size: {hidden_size}', end='\n')
+
+            # Run one training instance
+            res_dict, model = run_mamba(df=df, cv_dict=cv_dict, fold=fold, hidden_size=hidden_size)
+            print(' ')
+
+            # Save model
+            torch.save(model.state_dict(), f'../models/mamba/hidden_size/mamba_fold{fold}_hidden_size{hidden_size}.pt')
+
+            # Save results on every loop in case early stop
+            train_results[f'hidden_size_{hidden_size}'][f'fold_{fold}'] = res_dict
+            #Save metadata
+            output = open(f'../data/mamba_hidden_size_sweep_results.pkl', 'wb')
+            pickle.dump(train_results, output)
+            output.close()
 
 
 def main():
@@ -169,9 +195,10 @@ def main():
 
     print(f'{n_subjects} unique subjects found')
 
-    bottleneck_sweep(df, cv_dict, num_folds)
+    # bottleneck_sweep(df, cv_dict, num_folds)
     # learning_rate_sweep(df, cv_dict, num_folds)
-    # cov_weight_sweep(df, cv_dict, num_folds)
+    # weight_decay_sweep(df, cv_dict, num_folds)
+    hidden_size_sweep(df, cv_dict, num_folds)
 
 if __name__ == '__main__':
     main()
